@@ -44,7 +44,9 @@ def create_linear_regression_model(
 
 def create_binary_classification_model(
     input_features: List[str],
-    learning_rate: float
+    learning_rate: float,
+    metrics_thresholds: Dict[str, float],
+    auc_num_thresholds: int,
 ) -> keras.Model:
     """Create and compile a simple Keras binary classification model."""
     print("\n--- Creating Keras binary classification model ---")
@@ -58,10 +60,10 @@ def create_binary_classification_model(
         optimizer=keras.optimizers.RMSprop(learning_rate=learning_rate),
         loss=keras.losses.BinaryCrossentropy(),
         metrics=[
-            keras.metrics.BinaryAccuracy(name='accuracy', threshold=0.5),
-            keras.metrics.Precision(name='precision', thresholds=0.5),
-            keras.metrics.Recall(name='recall', thresholds=0.5),
-            keras.metrics.AUC(num_thresholds=100, name='auc'),
+            keras.metrics.BinaryAccuracy(name='accuracy', threshold=metrics_thresholds.get('accuracy', 0.5)),
+            keras.metrics.Precision(name='precision', thresholds=metrics_thresholds.get('precision', 0.5)),
+            keras.metrics.Recall(name='recall', thresholds=metrics_thresholds.get('recall', 0.5)),
+            keras.metrics.AUC(num_thresholds=auc_num_thresholds, name='auc'),
         ],
     )
     

@@ -27,7 +27,9 @@ class LogisticRegressionTrainer(BaseTrainer):
         """Builds the Keras binary classification model."""
         self.model = keras_utils.create_binary_classification_model(
             input_features=self.settings.input_features,
-            learning_rate=self.settings.learning_rate
+            learning_rate=self.settings.learning_rate,
+            metrics_thresholds=self.settings.metrics_thresholds,
+            auc_num_thresholds=self.settings.auc_num_thresholds
         )
 
     def evaluate(self, test_df: pd.DataFrame):
@@ -55,7 +57,10 @@ class LogisticRegressionTrainer(BaseTrainer):
             observed_col_name="OBSERVED_CLASS",
             error_col_name="PREDICTION_ERROR"
         )
-        all_predictions_df["PREDICTED_CLASS"] = (all_predictions_df["PREDICTED_PROBABILITY"] > 0.5).astype(int)
+        # For final classification, use the threshold defined for 'accuracy'
+        # as the decision boundary. Default to 0.5 if not specified.
+        threshold = self.settings.metrics_thresholds.get('accuracy', 0.5)
+        all_predictions_df["PREDICTED_CLASS"] = (all_predictions_df["PREDICTED_PROBABILITY"] > threshold).astype(int)
         
         prediction_utils.show_predictions(
             all_predictions_df.head(10), 

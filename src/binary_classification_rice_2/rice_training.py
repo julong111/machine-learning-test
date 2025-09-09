@@ -28,6 +28,11 @@ MODEL_CONFIGS = {
         batch_size=100,
         input_features=['Eccentricity', 'Major_Axis_Length', 'Area'],
         verbose=1,
+        metrics_thresholds={
+            'accuracy': 0.5,
+            'precision': 0.4,
+            'recall': 0.6,
+        },
     ),
 }
 
@@ -36,12 +41,11 @@ def main():
     # 1. Argument Parsing
     parser = argparse.ArgumentParser(description="Train a specified classification model.")
     parser.add_argument(
-        "model_type",
+        "--model-type",
         type=str,
         choices=MODEL_CONFIGS.keys(),
         default="rice_model",
-        nargs='?',
-        help=f"The type of model to train. Choose from: {list(MODEL_CONFIGS.keys())}",
+        help=f"The type of model to train. Defaults to 'rice_model'. Options: {list(MODEL_CONFIGS.keys())}",
     )
     args = parser.parse_args()
     model_type = args.model_type
