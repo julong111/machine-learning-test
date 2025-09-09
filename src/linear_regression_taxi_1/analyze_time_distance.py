@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 """Analyzes the relationship between trip distance and duration and saves the result."""
 
-import os
 import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
+from ..common import csv_utils
+
 
 def analyze_and_save_lookup():
     """Loads clean data, calculates average duration for distance bins, and saves to JSON."""
     # --- Configuration ---
-    # Paths are relative to the project root, where the script should be run from.
-    artifacts_dir = Path("artifacts") / "linear_regression_taxi_1"
+    # Construct absolute paths relative to the project root
+    project_root = Path(__file__).resolve().parents[2]
+    artifacts_dir = project_root / "artifacts" / "linear_regression_taxi_1"
     input_csv_path = artifacts_dir / "chicago_taxi_train.csv"
     output_json_path = artifacts_dir / "time_distance_lookup.json"
 
@@ -22,16 +24,12 @@ def analyze_and_save_lookup():
     distance_bins = list(range(0, 31)) + [np.inf]
 
     # --- Data Loading ---
-    print(f"Loading clean training data from {input_csv_path}...")
-    try:
-        df = pd.read_csv(input_csv_path)
-    except FileNotFoundError:
-        print(f"Error: Input file not found at {input_csv_path}")
+    df = csv_utils.load_csv(str(input_csv_path))
+    if df is None:
         return
 
     # --- Analysis ---
     print("Analyzing relationship between trip distance and duration...")
-    df["TRIP_MINUTES"] = df["TRIP_SECONDS"] / 60
     df["distance_bin"] = pd.cut(df["TRIP_MILES"], bins=distance_bins, right=False)
 
     # Create the lookup table

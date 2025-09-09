@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Analyze and find outlier records using intelligent, compound rules."""
-
 import os
 import pandas as pd
+
+from ..common import csv_utils
 
 
 def find_and_analyze_outliers():
@@ -19,15 +19,12 @@ def find_and_analyze_outliers():
     short_trip_threshold = 1.0           # (miles) - trips below this are considered short/base fare
 
     # --- Data Loading ---
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    # Updated to use the new, full dataset
-    input_csv_path = os.path.join(project_root, 'chicago_taxi_google.csv')
+    # Construct the path to the artifact file
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    input_csv_path = os.path.join(project_root, 'artifacts', 'linear_regression_taxi_1', 'chicago_taxi_google.csv')
 
-    print(f"Loading data from {input_csv_path}...")
-    try:
-        df = pd.read_csv(input_csv_path)
-    except FileNotFoundError:
-        print(f"Error: Input file not found at {input_csv_path}")
+    df = csv_utils.load_csv(input_csv_path)
+    if df is None:
         return
 
     # --- Pre-computation and Base Filtering ---

@@ -8,7 +8,8 @@ from pathlib import Path
 
 import keras
 
-from linear_regression_taxi_1 import utils, pipeline
+# Import utilities from our common package
+from common import csv_utils, prediction_utils
 
 
 # We need the DurationEstimator class here as well for the smart_model
@@ -34,10 +35,10 @@ def test_model(experiment_name: str, num_worst_predictions: int | None = None):
     print(f"--- Testing experiment: {experiment_name} ---")
 
     # --- Setup ---
-    # Paths are relative to the project root, where the script should be run from.
     artifacts_dir = Path("artifacts") / "linear_regression_taxi_1"
     model_path = artifacts_dir / f"{experiment_name}_model.keras"
     settings_path = artifacts_dir / f"{experiment_name}_settings.pkl"
+    test_data_path = artifacts_dir / "chicago_taxi_test.csv"
     large_error_threshold = 5.0
 
     if not model_path.exists() or not settings_path.exists():
@@ -49,9 +50,9 @@ def test_model(experiment_name: str, num_worst_predictions: int | None = None):
     model = keras.models.load_model(model_path)
     with open(settings_path, "rb") as f:
         settings = pickle.load(f)
-    test_df = pipeline.load_and_prepare_data(
-        "artifacts/linear_regression_taxi_1/chicago_taxi_test.csv"
-    )
+    
+    # The test data should already be processed, so we just load it.
+    test_df = csv_utils.load_csv(str(test_data_path))
 
     # --- Feature Engineering (for smart_model specifically) ---
     if experiment_name == "smart_model":
@@ -67,23 +68,25 @@ def test_model(experiment_name: str, num_worst_predictions: int | None = None):
 
     # --- Prediction and Analysis ---
     print("\nGenerating predictions for the entire test set...")
-    all_predictions_df = utils.predict_fare(
+    # Replacing the old function with the correct one from the common utils
+    all_predictions_df = prediction_utils.predict_on_dataframe(
         model=model,
         dataset=test_df,
         feature_names=settings.input_features,
         label_name="FARE",
+        error_col_name="L1_LOSS" # Explicitly name the error column to match legacy code
     )
 
     # Show extreme predictions if requested
     if num_worst_predictions and num_worst_predictions > 0:
         sorted_predictions = all_predictions_df.sort_values(by="L1_LOSS", ascending=False)
         worst_predictions = sorted_predictions.head(num_worst_predictions)
-        utils.show_predictions(
+        prediction_utils.show_predictions(
             worst_predictions, title=f"TOP {num_worst_predictions} WORST PREDICTIONS (HIGHEST ERROR)"
         )
-        best_predictions = sorted_predictions.tail(10).sort_values(by="L1_LOSS", ascending=True)
-        utils.show_predictions(
-            best_predictions, title="TOP 10 BEST PREDICTIONS (LOWEST ERROR)"
+        best_predictions = sorted_predictions.tail(5).sort_values(by="L1_LOSS", ascending=True)
+        prediction_utils.show_predictions(
+            best_predictions, title="TOP 5 BEST PREDICTIONS (LOWEST ERROR)"
         )
 
     # --- Final Evaluation and Summary ---

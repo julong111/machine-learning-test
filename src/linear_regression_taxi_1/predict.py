@@ -24,10 +24,6 @@ from pathlib import Path
 import numpy as np
 import keras
 
-# Import utils to allow unpickling of the ExperimentSettings object.
-from src.linear_regression_taxi_1 import utils
-
-
 # --- Special logic for 'smart_model' ---
 # This class is copied from train.py as it's needed for prediction as well.
 class DurationEstimator:
