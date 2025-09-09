@@ -1,24 +1,18 @@
 # -*- coding: utf-8 -*-
 """Handles all data processing for the Rice dataset."""
 
-import os
 import pandas as pd
 
 # Import common utilities
-from src.common import csv_utils
-from src.common import split_utils
 from src.common import stats_utils
+from src.common.base_data_wrapper import BaseDataWrapper
 
-class RiceDataWrapper:
-    """
-    Handles all data loading, preprocessing, and splitting for the Rice dataset.
-    """
 
-    def __init__(self, input_csv_path: str, artifacts_dir: str):
-        """Initializes the data wrapper."""
-        self.input_csv_path = input_csv_path
-        self.artifacts_dir = artifacts_dir
-        os.makedirs(self.artifacts_dir, exist_ok=True)
+class RiceDataWrapper(BaseDataWrapper):
+    """
+    Handles all data loading, preprocessing, and splitting for the Rice dataset
+    by inheriting from the BaseDataWrapper.
+    """
 
     def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         """Selects columns, normalizes features, and creates the boolean label."""
@@ -43,38 +37,17 @@ class RiceDataWrapper:
 
         return normalized_df
 
-    def process_and_split(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Orchestrates the full data processing pipeline for the Rice dataset."""
-        raw_df = csv_utils.load_csv(self.input_csv_path)
-        if raw_df is None:
-            raise FileNotFoundError(f"Raw data not found at {self.input_csv_path}")
+    def _get_final_columns(self) -> list[str]:
+        """Returns the list of columns to be used for modeling."""
+        return ['Eccentricity', 'Major_Axis_Length', 'Area', 'Class', 'Class_Bool']
 
-        preprocessed_df = self._preprocess(raw_df)
+    def _get_dataset_name(self) -> str:
+        """Returns the base name for the output CSV files."""
+        return "rice"
 
-        # Use a 64/16/20 split
-        train_df, val_df, test_df = split_utils.split_dataframe(
-            preprocessed_df, test_size=0.2, val_share_of_train=0.2, random_state=42
-        )
-
-        # Select only the columns needed for modeling
-        final_columns = ['Eccentricity', 'Major_Axis_Length', 'Area', 'Class', 'Class_Bool']
-
-        # Ensure all required columns are present
-        for df in [train_df, val_df, test_df]:
-            for col in final_columns:
-                if col not in df.columns:
-                    raise ValueError(f"Required column '{col}' not found in the DataFrame.")
-
-        train_df_final = train_df[final_columns]
-        val_df_final = val_df[final_columns]
-        test_df_final = test_df[final_columns]
-        
-        print(f"\nFinal datasets will contain only the following columns: {final_columns}")
-
-        # Save the final, streamlined datasets
-        csv_utils.save_csv(train_df_final, os.path.join(self.artifacts_dir, "rice_train.csv"))
-        csv_utils.save_csv(val_df_final, os.path.join(self.artifacts_dir, "rice_validation.csv"))
-        csv_utils.save_csv(test_df_final, os.path.join(self.artifacts_dir, "rice_test.csv"))
-        
-        print("\nProcess complete. Rice datasets are ready for modeling.")
-        return train_df_final, val_df_final, test_df_final
+    def _get_split_args(self) -> dict:
+        """
+        Returns arguments for a 64/16/20 split.
+        (test_size=0.2 means 80% for train+val, val_share_of_train=0.2 of 80% is 16% for val)
+        """
+        return {"test_size": 0.2, "val_share_of_train": 0.2, "random_state": 42}
