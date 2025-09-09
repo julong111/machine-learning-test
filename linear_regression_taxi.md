@@ -156,7 +156,7 @@ python -m src.linear_regression_taxi_1.analyze_time_distance
 # 步骤 2: 执行数据清洗与分割
 # (此步骤的命令已因脚本重构而更新)
 # 这会运行新的主处理脚本，应用我们最终的清洗算法，并生成三个干净的CSV文件。
-python -m src.linear_regression_taxi_1.process_chicago_taxi
+python -m src.linear_regression_taxi_1.prepare_taxi_data
 
 # 步骤 3: 训练所有模型
 # 使用统一的训练脚本，通过参数指定要训练的模型。

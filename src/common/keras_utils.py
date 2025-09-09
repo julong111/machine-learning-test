@@ -1,8 +1,25 @@
 # -*- coding: utf-8 -*-
 """Common utilities for creating Keras models."""
 
-from typing import List
+from typing import List, Dict
 import keras
+import numpy as np
+import pandas as pd
+
+def prepare_features_and_labels(
+    df: pd.DataFrame,
+    feature_cols: List[str],
+    label_col: str
+) -> tuple[dict[str, np.ndarray], np.ndarray]:
+    """Prepares features and labels for a Keras model from a DataFrame."""
+    if not all(col in df.columns for col in feature_cols):
+        raise ValueError("One or more feature columns are not in the DataFrame.")
+    if label_col not in df.columns:
+        raise ValueError("The label column is not in the DataFrame.")
+        
+    labels = df[label_col].to_numpy()
+    features = {name: np.array(df[name]) for name in feature_cols}
+    return features, labels
 
 def create_linear_regression_model(
     input_features: List[str],

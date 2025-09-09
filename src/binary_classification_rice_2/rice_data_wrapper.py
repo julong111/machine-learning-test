@@ -4,8 +4,10 @@
 import os
 import pandas as pd
 
+# Import common utilities
 from src.common import csv_utils
 from src.common import split_utils
+from src.common import stats_utils
 
 class RiceDataWrapper:
     """
@@ -29,18 +31,17 @@ class RiceDataWrapper:
         ]
         processed_df = df[relevant_cols].copy()
 
-        # 2. Normalize numerical features (Z-score normalization)
-        numerical_features = processed_df.select_dtypes('number').columns
-        feature_mean = processed_df[numerical_features].mean()
-        feature_std = processed_df[numerical_features].std()
-        processed_df[numerical_features] = (processed_df[numerical_features] - feature_mean) / feature_std
+        # 2. Normalize numerical features using the common utility
+        normalized_df = stats_utils.normalize_features(processed_df)
         print("Numerical features normalized.")
 
         # 3. Create boolean label
-        processed_df['Class_Bool'] = (processed_df['Class'] == 'Cammeo').astype(int)
+        # Copy the original 'Class' column back as it's needed for the label
+        normalized_df['Class'] = processed_df['Class']
+        normalized_df['Class_Bool'] = (normalized_df['Class'] == 'Cammeo').astype(int)
         print("Boolean label 'Class_Bool' created.")
 
-        return processed_df
+        return normalized_df
 
     def process_and_split(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Orchestrates the full data processing pipeline for the Rice dataset."""
@@ -50,15 +51,30 @@ class RiceDataWrapper:
 
         preprocessed_df = self._preprocess(raw_df)
 
-        # Use a 64/16/20 split, which corresponds to test_size=0.2 and val_share_of_train=0.2
+        # Use a 64/16/20 split
         train_df, val_df, test_df = split_utils.split_dataframe(
             preprocessed_df, test_size=0.2, val_share_of_train=0.2, random_state=42
         )
 
-        # Save the processed and split datasets
-        csv_utils.save_csv(train_df, os.path.join(self.artifacts_dir, "rice_train.csv"))
-        csv_utils.save_csv(val_df, os.path.join(self.artifacts_dir, "rice_validation.csv"))
-        csv_utils.save_csv(test_df, os.path.join(self.artifacts_dir, "rice_test.csv"))
+        # Select only the columns needed for modeling
+        final_columns = ['Eccentricity', 'Major_Axis_Length', 'Area', 'Class', 'Class_Bool']
+
+        # Ensure all required columns are present
+        for df in [train_df, val_df, test_df]:
+            for col in final_columns:
+                if col not in df.columns:
+                    raise ValueError(f"Required column '{col}' not found in the DataFrame.")
+
+        train_df_final = train_df[final_columns]
+        val_df_final = val_df[final_columns]
+        test_df_final = test_df[final_columns]
+        
+        print(f"\nFinal datasets will contain only the following columns: {final_columns}")
+
+        # Save the final, streamlined datasets
+        csv_utils.save_csv(train_df_final, os.path.join(self.artifacts_dir, "rice_train.csv"))
+        csv_utils.save_csv(val_df_final, os.path.join(self.artifacts_dir, "rice_validation.csv"))
+        csv_utils.save_csv(test_df_final, os.path.join(self.artifacts_dir, "rice_test.csv"))
         
         print("\nProcess complete. Rice datasets are ready for modeling.")
-        return train_df, val_df, test_df
+        return train_df_final, val_df_final, test_df_final

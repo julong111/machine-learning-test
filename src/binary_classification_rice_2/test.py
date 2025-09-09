@@ -1,91 +1,97 @@
-# test.py
+# -*- coding: utf-8 -*-
+"""Main entry point for evaluating binary classification models for the rice dataset."""
 
 import argparse
+import os
+import sys
 import keras
-import ml_edu.experiment
-import ml_edu.results
-import numpy as np
 import pandas as pd
 
-# Set the random seeds
-keras.utils.set_random_seed(42)
+# Add the project root to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-# Load the dataset
-rice_dataset_raw = pd.read_csv("https://download.mlcc.google.com/mledu-datasets/Rice_Cammeo_Osmancik.csv")
+# Import the refactored classes and utilities
+from src.common import csv_utils
+from src.common.keras_utils import prepare_features_and_labels
 
-# Select relevant columns
-rice_dataset = rice_dataset_raw[[
-    'Area',
-    'Perimeter',
-    'Major_Axis_Length',
-    'Minor_Axis_Length',
-    'Eccentricity',
-    'Convex_Area',
-    'Extent',
-    'Class',
-]]
+# Configuration for the model features, must match training
+# This should ideally be in a shared config file
+MODEL_CONFIGS = {
+    "rice_model": {
+        "input_features": ['Eccentricity', 'Major_Axis_Length', 'Area'],
+    }
+}
 
-# Normalize data
-feature_mean = rice_dataset.mean(numeric_only=True)
-feature_std = rice_dataset.std(numeric_only=True)
-numerical_features = rice_dataset.select_dtypes('number').columns
-normalized_dataset = (
-    rice_dataset[numerical_features] - feature_mean
-) / feature_std
-
-# Copy the class to the new dataframe
-normalized_dataset['Class'] = rice_dataset['Class']
-
-# Label data
-normalized_dataset['Class_Bool'] = (
-    # Returns true if class is Cammeo, and false if class is Osmancik
-    normalized_dataset['Class'] == 'Cammeo'
-).astype(int)
-
-# Split data
-number_samples = len(normalized_dataset)
-index_80th = round(number_samples * 0.8)
-index_90th = index_80th + round(number_samples * 0.1)
-
-shuffled_dataset = normalized_dataset.sample(frac=1, random_state=100)
-train_data = shuffled_dataset.iloc[0:index_80th]
-validation_data = shuffled_dataset.iloc[index_80th:index_90th]
-test_data = shuffled_dataset.iloc[index_90th:]
-
-# Separate features and labels
-label_columns = ['Class', 'Class_Bool']
-
-train_features = train_data.drop(columns=label_columns)
-train_labels = train_data['Class_Bool'].to_numpy()
-validation_features = validation_data.drop(columns=label_columns)
-validation_labels = validation_data['Class_Bool'].to_numpy()
-test_features = test_data.drop(columns=label_columns)
-test_labels = test_data['Class_Bool'].to_numpy()
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Evaluate a trained binary classification model for rice species on the test set.')
-    parser.add_argument('--model_path', type=str, default='trained_model.keras', help='Path to load the trained model.')
-
+def main():
+    """Orchestrates the model evaluation process."""
+    # 1. Argument Parsing
+    parser = argparse.ArgumentParser(description="Evaluate a trained classification model.")
+    parser.add_argument(
+        "model_type",
+        type=str,
+        choices=MODEL_CONFIGS.keys(),
+        default="rice_model",
+        nargs='?',
+        help=f"The type of model to evaluate. Choose from: {list(MODEL_CONFIGS.keys())}",
+    )
     args = parser.parse_args()
+    model_type = args.model_type
 
-    # Load the trained model
-    loaded_model = keras.models.load_model(args.model_path)
+    # 2. Setup Paths and Configuration
+    print(f"\n--- Starting evaluation for model: {model_type} ---")
+    artifacts_dir = os.path.join(project_root, 'artifacts', 'binary_classification_rice_2')
+    
+    # Define paths for test data and model
+    test_csv_path = os.path.join(artifacts_dir, "rice_test.csv")
+    model_path = os.path.join(artifacts_dir, f'{model_type}.keras')
 
-    # Define input features (this should match the features used during training)
-    input_features = [
-        'Eccentricity',
-        'Major_Axis_Length',
-        'Area',
-    ]
+    if not os.path.exists(test_csv_path):
+        print(f"Error: Test data not found at {test_csv_path}")
+        print("Please run the training script first to generate the data.")
+        return
 
-    # Evaluate the model on the test set
-    test_metrics = loaded_model.evaluate(
-        x={feature_name: np.array(test_features[feature_name]) for feature_name in input_features},
-        y=test_labels,
-        verbose=0
+    if not os.path.exists(model_path):
+        print(f"Error: Model not found at {model_path}")
+        print("Please run the training script first to generate the model.")
+        return
+
+    # 3. Load Test Data
+    print(f"Loading test data from {test_csv_path}...")
+    test_df = csv_utils.load_csv(test_csv_path)
+    if test_df is None:
+        print("Error: Failed to load test data. Aborting.")
+        return
+
+    # 4. Feature and Label Preparation
+    config = MODEL_CONFIGS[model_type]
+    input_features = config['input_features']
+    label_column = 'Class_Bool'
+    
+    test_features, test_labels = prepare_features_and_labels(
+        test_df, input_features, label_column
     )
 
-    # Print the test metrics
+    # 5. Load Model
+    print(f"Loading model from {model_path}...")
+    try:
+        model = keras.models.load_model(model_path)
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return
+    
+    # 6. Model Evaluation
+    print("\n--- Evaluating Model Performance on Test Set ---")
+    metrics = model.evaluate(test_features, test_labels, verbose=1)
+    
+    print("\n--- Evaluation Complete ---")
     print("Test Metrics:")
-    for metric_name, metric_value in zip(loaded_model.metrics_names, test_metrics):
-        print(f"{metric_name}: {metric_value:.4f}")
+    for metric_name, metric_value in zip(model.metrics_names, metrics):
+        print(f"  {metric_name}: {metric_value:.4f}")
+
+    print(f"\n--- Successfully completed evaluation for model: {model_type} ---")
+
+
+if __name__ == "__main__":
+    main()

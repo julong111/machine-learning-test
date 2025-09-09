@@ -3,6 +3,34 @@
 
 import pandas as pd
 
+def normalize_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalizes the numerical features of a DataFrame using z-score normalization.
+
+    Args:
+        df: The pandas DataFrame to normalize.
+
+    Returns:
+        A new DataFrame with the numerical features normalized.
+    """
+    print("\n--- Normalizing numerical features ---")
+    numerical_features = df.select_dtypes(include='number').columns
+    
+    if not numerical_features.any():
+        print("No numerical features to normalize.")
+        return df.copy()
+
+    feature_mean = df[numerical_features].mean()
+    feature_std = df[numerical_features].std()
+
+    # Avoid division by zero for columns with no variance
+    feature_std[feature_std == 0] = 1.0
+
+    normalized_df = df.copy()
+    normalized_df[numerical_features] = (df[numerical_features] - feature_mean) / feature_std
+
+    print("Numerical features normalized successfully.")
+    return normalized_df
+
 def get_iqr_bounds(series: pd.Series, multiplier: float = 1.5) -> tuple[float, float]:
     """Calculates the lower and upper bounds for outlier detection using the IQR method.
 
