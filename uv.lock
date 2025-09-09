@@ -259,7 +259,7 @@ wheels = [
 ]
 
 [[package]]
-name = "linear-regression-taxi"
+name = "machine-learning-test"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
