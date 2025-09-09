@@ -1,0 +1,42 @@
+Dataset loaded and prepared successfully.
+Total number of rows: 24975
+
+learning_rate=0.001,
+number_epochs=20,
+batch_size=50,
+
+--- Overall Test Results for: single_feature ---
+Loss: 7.5806
+Compile_metrics: 2.7533
+-----------------------------------
+Errors > $5.00: 100 / 3122 (3.20%)
+-----------------------------------
+
+learning_rate=0.001,
+number_epochs=20,
+batch_size=1000,
+
+--- Overall Test Results for: single_feature ---
+Loss: 69.4962
+Compile_metrics: 8.3364
+-----------------------------------
+Errors > $5.00: 2128 / 3122 (68.16%)
+-----------------------------------
+
+learning_rate=0.02,
+number_epochs=20,
+batch_size=1000,
+--- Overall Test Results for: single_feature ---
+Loss: 7.6387
+Compile_metrics: 2.7638
+-----------------------------------
+Errors > $5.00: 102 / 3122 (3.27%)
+-----------------------------------
+
+
+--- Overall Test Results for: single_feature ---
+Loss: 7.5772
+Compile_metrics: 2.7527
+-----------------------------------
+Errors > $5.00: 98 / 3122 (3.14%)
+-----------------------------------
