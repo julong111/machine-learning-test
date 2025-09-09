@@ -4,9 +4,11 @@
 import os
 from typing import List
 from matplotlib import pyplot as plt
+import numpy as np
 
 # Import the Experiment dataclass from our new types module
 from src.common.types import Experiment
+
 
 def plot_training_history(experiment: Experiment, metrics: List[str], save_path: str):
     """Plots the training metrics for an experiment and saves the plot to a file."""
@@ -93,6 +95,66 @@ def plot_classification_history(experiment: Experiment, save_path: str):
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"Saving classification plot to {save_path}...")
+    plt.savefig(save_path)
+    plt.clf()
+    print("Plot saved successfully.")
+
+
+def plot_precision_recall_curve(
+    precisions: np.ndarray,
+    recalls: np.ndarray,
+    thresholds: np.ndarray,
+    optimal_idx: int,
+    current_threshold: float,
+    save_path: str
+):
+    """
+    Plots the precision-recall curve and highlights the optimal and current thresholds.
+
+    Args:
+        precisions: An array of precision values.
+        recalls: An array of recall values.
+        thresholds: An array of threshold values corresponding to precision and recall.
+        optimal_idx: The index of the optimal threshold in the arrays.
+        current_threshold: The threshold currently used by the model for decisions.
+        save_path: The file path to save the plot.
+    """
+    print(f"\n--- Plotting Precision-Recall Curve ---")
+    plt.figure(figsize=(10, 8))
+
+    # Plot the main PR curve
+    plt.plot(recalls, precisions, label='Precision-Recall Curve')
+
+    # Highlight the optimal threshold point
+    optimal_recall = recalls[optimal_idx]
+    optimal_precision = precisions[optimal_idx]
+    optimal_thresh_val = thresholds[optimal_idx]
+    plt.plot(optimal_recall, optimal_precision, 'ro', label=f'Optimal (F2-Score) @ Threshold={optimal_thresh_val:.2f}')
+    plt.annotate(
+        f'P={optimal_precision:.2f}, R={optimal_recall:.2f}',
+        xy=(optimal_recall, optimal_precision),
+        xytext=(optimal_recall + 0.02, optimal_precision - 0.04)
+    )
+
+    # Highlight the current threshold point
+    # Find the closest threshold in the list to the current one
+    current_idx = np.argmin(np.abs(thresholds - current_threshold))
+    current_recall = recalls[current_idx]
+    current_precision = precisions[current_idx]
+    plt.plot(current_recall, current_precision, 'go', label=f'Current @ Threshold={current_threshold:.2f}')
+    plt.annotate(
+        f'P={current_precision:.2f}, R={current_recall:.2f}',
+        xy=(current_recall, current_precision),
+        xytext=(current_recall + 0.02, current_precision - 0.04)
+    )
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve Analysis')
+    plt.legend()
+    plt.grid(True)
+
+    print(f"Saving PR curve plot to '{save_path}'")
     plt.savefig(save_path)
     plt.clf()
     print("Plot saved successfully.")

@@ -28,11 +28,7 @@ MODEL_CONFIGS = {
         batch_size=100,
         input_features=['Eccentricity', 'Major_Axis_Length', 'Area'],
         verbose=1,
-        metrics_thresholds={
-            'accuracy': 0.5,
-            'precision': 0.4,
-            'recall': 0.6,
-        },
+        decision_threshold=0.3184,
     ),
 }
 
@@ -85,7 +81,7 @@ def main():
     trainer = LogisticRegressionTrainer(experiment_name=model_type, settings=settings)
     trainer.build_model()
     trainer.train(train_df, val_df)
-    trainer.evaluate(test_df)
+    trainer.evaluate(test_df, artifacts_dir)
     trainer.save(artifacts_dir)
 
     print(f"\n--- Successfully completed all steps for model: {model_type} ---")
