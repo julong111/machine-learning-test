@@ -10,6 +10,7 @@ dependencies = [
     "matplotlib~=3.8.4", # Pinned to be compatible with numpy~=1.26.4
     "numpy~=1.26.4", # Pinned to < 2.0 for tensorflow-cpu compatibility
     "pandas~=2.2.0",
+    "pytest>=8.4.2",
     "scikit-learn>=1.7.1",
     "tensorflow-cpu~=2.16.1", # Last official build for Intel-based macOS
 ]

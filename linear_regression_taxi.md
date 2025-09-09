@@ -20,12 +20,14 @@
 
 ---
 
-### **`src/split_data.py` (核心数据处理脚本)**
+### **`src/linear_regression_taxi_1/process_chicago_taxi.py` & `split_data.py` (核心数据处理)**
 
-*   **核心作用**: 这是整个项目的**数据处理中枢**和**单一事实来源 (Single Source of Truth)**。它的唯一职责是，接收最原始的数据文件 (`chicago_taxi_google.csv`)，执行我们最终确定的、最智能的清洗逻辑，然后生成供所有下游模型使用的、统一的、干净的训练集、验证集和测试集。
+**重构说明**: 为了提高代码的复用性，原有的 `split_data.py` 脚本已被重构。现在，`split_data.py` 只包含通用的数据处理函数（如加载、切分、保存CSV），而所有针对芝加哥出租车数据的特定清洗逻辑，以及整个处理流程的编排，都被移入了新的 `process_chicago_taxi.py` 脚本中。
 
-*   **处理流程**:
-    1.  **加载**：读取原始的 `chicago_taxi_google.csv` 文件。
+*   **核心作用**: `process_chicago_taxi.py` 现在是整个项目的**数据处理中枢**和**单一事实来源 (Single Source of Truth)**。它调用 `split_data.py` 中的通用工具，执行我们最终确定的、最智能的清洗逻辑，然后生成供所有下游模型使用的、统一的、干净的训练集、验证集和测试集。
+
+*   **处理流程 (在 `process_chicago_taxi.py` 中编排)**:
+    1.  **加载**: 调用 `split_data.load_data()` 读取原始的 `chicago_taxi_google.csv` 文件。
     2.  **初步过滤**: 移除 `FARE`, `TRIP_MILES`, `TRIP_MINUTES` 中任何小于或等于0的、物理上不可能的行程。
     3.  **智能分组**: 将数据**划分为两个独立群体**进行区别对待，这是整个清洗逻辑的核心：
         *   **群体A：短途行程** (`TRIP_MILES <= 1.0`)
@@ -34,10 +36,10 @@
         *   对于**群体A**，单独计算其 `FARE` 的99.9百分位数，以此作为该群体的“费用硬上限”。
         *   对于**群体B**，单独计算其 `price_per_mile` 的Q1, Q3和IQR，以此作为该群体的“单位票价上限”。
     5.  **执行清洗**: 根据为每个群体量身定制的规则，结合对所有行程都适用的“速度异常”和“单位票价过低”规则，识别并**移除**所有异常记录。
-    6.  **数据分割**: 对最终得到的、干净的数据集，使用 `train_test_split` 函数执行标准的80/10/10分割。
-    7.  **覆盖保存**: 将三个干净的数据集，直接覆盖保存为 `chicago_taxi_train.csv`, `chicago_taxi_validation.csv`, `chicago_taxi_test.csv`。
+    6.  **数据分割**: 调用 `split_data.split_data()` 对最终得到的、干净的数据集，执行标准的80/10/10分割。
+    7.  **覆盖保存**: 调用 `split_data.save_split_data()` 将三个干净的数据集，直接覆盖保存为 `chicago_taxi_train.csv`, `chicago_taxi_validation.csv`, `chicago_taxi_test.csv`。
 
-*   **关键参数与选择原因**:
+*   **关键参数与选择原因** (清洗逻辑位于 `process_chicago_taxi.py`):
     *   `short_trip_mile_threshold = 1.0`: 将1英里作为短途和非短途的分割线，这是一个基于常识的判断，因为起步价通常覆盖了最初一小段距离。
     *   `short_trip_fare_quantile = 0.999`: 对短途行程的费用，我们使用99.9百分位数作为上限。这是一种数据驱动的方法，旨在移除那些极端罕见的“天价”短途行程，同时保留所有在统计上合理的费用。
     *   `IQR Multiplier = 1.5`: 在计算非短途行程的单位票价上限时，我们使用了 `Q3 + 1.5 * IQR` 这个标准统计学公式。`1.5` 是一个在统计学中被广泛接受的、用于识别温和异常值的标准系数。
@@ -46,37 +48,36 @@
 
 ---
 
-### **`src/train_*.py` (模型训练脚本)**
+### **`src/linear_regression_taxi_1/train.py` (统一模型训练脚本)**
 
-这是一个脚本家族，包含了我们项目迭代过程中的所有模型。
+*   **核心作用**: 这是统一的模型训练入口，通过命令行参数指定要训练的模型。它取代了原有的多个 `train_*.py` 脚本。
 
-*   **核心作用**: 负责定义、训练和保存一个特定版本的Keras模型。
-*   **包含的脚本**:
-    *   `train_single_feature.py`: 训练一个最基础的、只使用 `TRIP_MILES` 的**基准模型**。
-    *   `train_multi_feature.py`: 训练一个使用 `TRIP_MILES` 和 **真实** `TRIP_MINUTES` 的**诊断模型**，其主要价值是证明“时间”因素的重要性。
-    *   `train_smart_model.py`: 训练我们最终的、使用 `TRIP_MILES` 和 **预估** `ESTIMATED_MINUTES` 的**生产模型**。
+*   **支持的模型类型**:
+    *   `single_feature`: 训练一个最基础的、只使用 `TRIP_MILES` 的**基准模型**。
+    *   `multi_feature`: 训练一个使用 `TRIP_MILES` 和 **真实** `TRIP_MINUTES` 的**诊断模型**，其主要价值是证明“时间”因素的重要性。
+    *   `smart_model`: 训练我们最终的、使用 `TRIP_MILES` 和 **预估** `ESTIMATED_MINUTES` 的**生产模型**。
 
 *   **处理流程**:
-    1.  定义实验名称、输入特征、学习率等超参数。
-    2.  **对于 `train_smart_model`**: 首先从 `artifacts` 目录加载 `time_distance_lookup.json` 配置文件。
+    1.  接收命令行参数 (`model_type`)。
+    2.  根据 `model_type` 选择对应的配置 (输入特征、学习率等)。
     3.  加载干净的 `chicago_taxi_train.csv` 数据。
-    4.  **对于 `train_smart_model`**: 执行**特征工程**，利用加载的规则，为训练数据动态创建 `ESTIMATED_MINUTES` 新特征。
+    4.  **对于 `smart_model`**: 执行**特征工程**，利用 `time_distance_lookup.json` 规则，为训练数据动态创建 `ESTIMATED_MINUTES` 新特征。
     5.  定义并编译一个Keras线性回归模型。
     6.  在处理好的训练数据上执行模型训练。
-    7.  将训练好的模型 (`.keras`) 和其配置 (`.pkl`) 保存到 `artifacts` 目录中。
+    7.  将训练好的模型 (`.keras`) 和其配置 (`.pkl`) 保存到 `artifacts/linear_regression_taxi_1` 目录中。
 
 *   **关键参数与选择原因**:
     *   `learning_rate=0.001`, `number_epochs=20`, `batch_size=50`: 这些是针对此类简单的线性回归任务，非常标准和稳健的初始超参数组合。它们能在保证模型充分收敛的同时，有效防止训练过程中的梯度爆炸或过拟合问题。
 
 ---
 
-### **`src/test.py` (统一模型评估脚本)**
+### **`src/linear_regression_taxi_1/test.py` (统一模型评估脚本)**
 
 *   **核心作用**: 提供一个标准化的最终评估平台，用于在干净的测试集上，公平地衡量任何一个已训练模型的真实性能。
 
 *   **处理流程**:
-    1.  通过命令行参数，接收一个要评估的 `experiment_name` (如 `smart_model`)。
-    2.  加载 `artifacts` 目录中对应的模型 (`.keras`) 和配置 (`.pkl`)。
+    1.  通过命令行参数，接收一个要评估的 `model_type` (如 `smart_model`)。
+    2.  加载 `artifacts/linear_regression_taxi_1` 目录中对应的模型 (`.keras`) 和配置 (`.pkl`)。
     3.  加载干净的 `chicago_taxi_test.csv` 数据。
     4.  **核心逻辑**: 如果评估的是 `smart_model`，脚本会**执行与训练时完全相同的特征工程步骤**：加载 `time_distance_lookup.json`，并为**测试集**动态创建 `ESTIMATED_MINUTES` 特征。这保证了训练和测试的一致性。
     5.  使用加载的模型，对处理好的测试集生成全部预测。
@@ -88,7 +89,7 @@
 
 ---
 
-### **`src/analyze_time_distance.py` (分析与配置生成脚本)**
+### **`src/linear_regression_taxi_1/analyze_time_distance.py` (分析与配置生成脚本)**
 
 *   **核心作用**: 这是我们“智能模型”的**大脑构建器**。它是一个一次性的分析脚本，负责从历史数据中提炼知识，并将其转化为一个可供其他脚本使用的配置文件。
 
@@ -96,7 +97,7 @@
     1.  加载干净的 `chicago_taxi_train.csv` 数据。
     2.  将 `TRIP_MILES` 按1英里为间隔进行分箱。
     3.  使用 `groupby()` 计算出每个距离区间的平均行程时间 `average_minutes`。
-    4.  将这个计算出的“速查表”保存为一个结构清晰的 `time_distance_lookup.json` 文件，存放在 `artifacts` 目录中。
+    4.  将这个计算出的“速查表”保存为一个结构清晰的 `time_distance_lookup.json` 文件，存放在 `artifacts/linear_regression_taxi_1` 目录中。
 
 *   **使用到的关键算法/方法**:
     *   **Pandas `groupby()` & `cut()`**: 用于执行核心的分箱与聚合分析。
@@ -147,27 +148,34 @@
 ```bash
 # (可选) 步骤 0: 运行分析脚本，检查数据异常情况
 # 这个脚本只读不改，用于探索性分析。
-python -m src.find_outliers
+python -m src.linear_regression_taxi_1.find_outliers
 
 # 步骤 1: 生成“距离-时间”速查表 (我们智能模型的大脑)
-python -m src.analyze_time_distance
+python -m src.linear_regression_taxi_1.analyze_time_distance
 
 # 步骤 2: 执行数据清洗与分割
-# 这会读取原始数据，应用我们最终的清洗算法，并生成三个干净的CSV文件。
-python -m src.split_data
+# (此步骤的命令已因脚本重构而更新)
+# 这会运行新的主处理脚本，应用我们最终的清洗算法，并生成三个干净的CSV文件。
+python -m src.linear_regression_taxi_1.process_chicago_taxi
 
 # 步骤 3: 训练所有模型
-# 依次训练我们的基准模型、诊断模型和最终的智能模型。
-python -m src.train_single_feature
-python -m src.train_multi_feature
-python -m src.train_smart_model
+# 使用统一的训练脚本，通过参数指定要训练的模型。
+python -m src.linear_regression_taxi_1.train single_feature
+python -m src.linear_regression_taxi_1.train multi_feature
+python -m src.linear_regression_taxi_1.train smart_model
 
 # 步骤 4: 评估所有模型
 # 在干净的测试集上，对每个模型进行最终的性能评估和比较。
-python -m src.test single_feature
-python -m src.test multi_feature
-python -m src.test smart_model
+python -m src.linear_regression_taxi_1.test single_feature
+python -m src.linear_regression_taxi_1.test multi_feature
+python -m src.linear_regression_taxi_1.test smart_model
 
 # (可选) 查看特定数量的最差/最佳预测样本
-python -m src.test smart_model --show-predictions 15
+python -m src.linear_regression_taxi_1.test smart_model --show-predictions 15
+
+# 步骤 5: 使用训练好的模型进行单次预测
+# 使用统一的预测脚本，通过参数指定模型和输入特征。
+python -m src.linear_regression_taxi_1.predict single_feature --trip-miles 10.5
+python -m src.linear_regression_taxi_1.predict multi_feature --trip-miles 10.5 --trip-minutes 25
+python -m src.linear_regression_taxi_1.predict smart_model --trip-miles 10.5
 ```

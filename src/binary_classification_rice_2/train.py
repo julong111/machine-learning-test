@@ -1,6 +1,7 @@
 # train.py
 
 import argparse
+import os
 import keras
 import ml_edu.experiment
 import ml_edu.results
@@ -10,8 +11,13 @@ import pandas as pd
 # Set the random seeds
 keras.utils.set_random_seed(42)
 
-# Load the dataset
-rice_dataset_raw = pd.read_csv("https://download.mlcc.google.com/mledu-datasets/Rice_Cammeo_Osmancik.csv")
+# --- Path Configuration ---
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+artifacts_dir = os.path.join(project_root, 'artifacts', 'binary_classification_rice_2')
+input_csv_path = os.path.join(artifacts_dir, 'Rice_Cammeo_Osmancik.csv')
+
+# Load the dataset from the local path
+rice_dataset_raw = pd.read_csv(input_csv_path)
 
 # Select relevant columns
 rice_dataset = rice_dataset_raw[[
@@ -132,7 +138,9 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for the optimizer.')
     parser.add_argument('--epochs', type=int, default=60, help='Number of training epochs.')
     parser.add_argument('--batch_size', type=int, default=100, help='Batch size for training.')
-    parser.add_argument('--model_path', type=str, default='trained_model.keras', help='Path to save the trained model.')
+
+    default_model_path = os.path.join(artifacts_dir, 'trained_model.keras')
+    parser.add_argument('--model_path', type=str, default=default_model_path, help='Path to save the trained model.')
 
     args = parser.parse_args()
 
@@ -172,6 +180,9 @@ if __name__ == "__main__":
     experiment = train_model(
         'baseline', model, train_features, train_labels, settings
     )
+
+    # Ensure the output directory exists before saving
+    os.makedirs(os.path.dirname(args.model_path), exist_ok=True)
 
     # Save the trained model
     model.save(args.model_path)
