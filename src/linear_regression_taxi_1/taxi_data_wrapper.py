@@ -2,13 +2,15 @@
 """Handles all data processing for the Chicago Taxi dataset."""
 
 import json
-import os
 import numpy as np
 import pandas as pd
+import os
+import pickle
 
 # Import common utilities
 from src.common import stats_utils
 from src.common.base_data_wrapper import BaseDataWrapper
+from sklearn.preprocessing import StandardScaler
 
 
 class TaxiDataWrapper(BaseDataWrapper):
@@ -61,7 +63,7 @@ class TaxiDataWrapper(BaseDataWrapper):
 
     def _get_final_columns(self) -> list[str]:
         """Returns the list of columns to be used for modeling."""
-        return ['TRIP_MILES', 'TRIP_MINUTES', 'ESTIMATED_MINUTES', 'FARE']
+        return ['TRIP_MILES', 'TRIP_MINUTES', 'ESTIMATED_MINUTES', 'TRIP_MILES_SQ', 'FARE']
 
     def _get_dataset_name(self) -> str:
         """Returns the base name for the output CSV files."""
@@ -107,23 +109,42 @@ class TaxiDataWrapper(BaseDataWrapper):
                     return self.time_distance_lookup[upper_bound]
             return self.time_distance_lookup[sorted_upper_bounds[-1]]
 
-        df_engineered["ESTIMATED_MINUTES"] = df_engineered["TRIP_MILES"].apply(estimate)
-        print("Engineered 'TRIP_MINUTES' and 'ESTIMATED_MINUTES' features.")
+        df_engineered['ESTIMATED_MINUTES'] = df_engineered['TRIP_MILES'].apply(estimate)
+        df_engineered['TRIP_MILES_SQ'] = df_engineered['TRIP_MILES'] ** 2
+        print("Engineered 'TRIP_MINUTES', 'ESTIMATED_MINUTES', and 'TRIP_MILES_SQ' features.")
         return df_engineered
 
     def _post_split_processing(
         self, train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Creates and applies the time-distance lookup based on the training data,
-        then engineers features for all datasets.
-        """
+        """Post-split hook to engineer, then scale features."""
         # 1. Create the lookup table from the training data
         self._create_time_distance_lookup(train_df)
 
         # 2. Apply feature engineering to all datasets using the created lookup
-        train_df_featured = self._feature_engineer(train_df)
-        val_df_featured = self._feature_engineer(val_df)
-        test_df_featured = self._feature_engineer(test_df)
+        train_df = self._feature_engineer(train_df)
+        val_df = self._feature_engineer(val_df)
+        test_df = self._feature_engineer(test_df)
 
-        return train_df_featured, val_df_featured, test_df_featured
+        # 3. Scale features based on the training set
+        print("\n--- Scaling Features ---")
+        features_to_scale = ['TRIP_MILES', 'ESTIMATED_MINUTES', 'TRIP_MILES_SQ']
+        scaler_path = os.path.join(self.artifacts_dir, 'fare_scaler.pkl')
+
+        scaler = StandardScaler()
+
+        # Fit on training data and transform it
+        train_df[features_to_scale] = scaler.fit_transform(train_df[features_to_scale])
+        print("Scaler fitted on training data.")
+
+        # Transform validation and test data
+        val_df[features_to_scale] = scaler.transform(val_df[features_to_scale])
+        test_df[features_to_scale] = scaler.transform(test_df[features_to_scale])
+        print("Applied the same scaling to validation and test sets.")
+
+        # Save the fitted scaler
+        with open(scaler_path, 'wb') as f:
+            pickle.dump(scaler, f)
+        print(f"Scaler object saved to {scaler_path}")
+
+        return train_df, val_df, test_df

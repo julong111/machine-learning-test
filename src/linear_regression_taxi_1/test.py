@@ -9,25 +9,7 @@ from pathlib import Path
 import keras
 
 # Import utilities from our common package
-from common import csv_utils, prediction_utils
-
-
-# We need the DurationEstimator class here as well for the smart_model
-class DurationEstimator:
-    def __init__(self, config_path: Path):
-        try:
-            with open(config_path, 'r') as f:
-                self.lookup_table = {float(k): v for k, v in json.load(f).items()}
-            self.sorted_upper_bounds = sorted(self.lookup_table.keys())
-        except FileNotFoundError:
-            print(f"Error: Lookup table not found at {config_path}")
-            raise
-
-    def estimate(self, miles: float) -> float:
-        for upper_bound in self.sorted_upper_bounds:
-            if miles < upper_bound:
-                return self.lookup_table[upper_bound]
-        return self.lookup_table[self.sorted_upper_bounds[-1]]
+from src.common import csv_utils, prediction_utils
 
 
 def test_model(experiment_name: str, num_worst_predictions: int | None = None):
@@ -53,18 +35,6 @@ def test_model(experiment_name: str, num_worst_predictions: int | None = None):
     
     # The test data should already be processed, so we just load it.
     test_df = csv_utils.load_csv(str(test_data_path))
-
-    # --- Feature Engineering (for smart_model specifically) ---
-    if experiment_name == "smart_model":
-        print("\nSmart model detected. Applying feature engineering to test set...")
-        lookup_table_path = artifacts_dir / "time_distance_lookup.json"
-        try:
-            estimator = DurationEstimator(lookup_table_path)
-        except FileNotFoundError:
-            print("Could not initialize duration estimator. Aborting.")
-            return
-        test_df["ESTIMATED_MINUTES"] = test_df["TRIP_MILES"].apply(estimator.estimate)
-        print("Feature engineering complete.")
 
     # --- Prediction and Analysis ---
     print("\nGenerating predictions for the entire test set...")

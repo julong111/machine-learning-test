@@ -21,31 +21,12 @@ import argparse
 import json
 import pickle
 from pathlib import Path
+import pandas as pd
 import numpy as np
 import keras
 
-# --- Special logic for 'smart_model' ---
-# This class is copied from train.py as it's needed for prediction as well.
-class DurationEstimator:
-    """Loads a lookup table to provide trip duration estimates based on distance."""
-    def __init__(self, config_path: Path):
-        print(f"Loading duration estimation rules from {config_path}...")
-        try:
-            with open(config_path, 'r') as f:
-                self.lookup_table = {float(k): v for k, v in json.load(f).items()}
-            self.sorted_upper_bounds = sorted(self.lookup_table.keys())
-            print("Duration estimator initialized successfully.")
-        except FileNotFoundError:
-            print(f"Error: Lookup table not found at {config_path}")
-            print("Please run 'analyze_time_distance.py' first to generate the lookup table.")
-            raise
-
-    def estimate(self, miles: float) -> float:
-        """Estimates trip duration by finding the correct bin in the loaded lookup table."""
-        for upper_bound in self.sorted_upper_bounds:
-            if miles < upper_bound:
-                return self.lookup_table[upper_bound]
-        return self.lookup_table[self.sorted_upper_bounds[-1]]
+# Import the shared DurationEstimator from our new utility file
+from src.linear_regression_taxi_1.taxi_duration_estimator import DurationEstimator
 
 
 def main():
@@ -85,6 +66,18 @@ def main():
         print(f"Please ensure you have run the training script first: 'python src/linear_regression_taxi_1/train.py {model_type}'")
         return
 
+    # Load scaler if needed for the model
+    scaler = None
+    if model_type == "smart_model":
+        scaler_path = artifacts_dir / 'fare_scaler.pkl'
+        try:
+            with open(scaler_path, 'rb') as f:
+                scaler = pickle.load(f)
+            print("Feature scaler loaded successfully.")
+        except FileNotFoundError:
+            print(f"Error: Scaler file not found at {scaler_path}. Please run the data preparation script first.")
+            return
+
     # --- 3. Prepare Input Data (with conditional feature engineering) ---
     input_data = {}
     print_data = {} # For displaying a clean summary to the user
@@ -96,11 +89,21 @@ def main():
             estimator = DurationEstimator(lookup_table_path)
             estimated_minutes = estimator.estimate(args.trip_miles)
             print(f"Estimated trip duration: {estimated_minutes:.2f} minutes")
+            trip_miles_sq = args.trip_miles ** 2
             print_data["Estimated Minutes"] = estimated_minutes
-            
-            input_data["TRIP_MILES"] = np.array([args.trip_miles])
-            input_data["ESTIMATED_MINUTES"] = np.array([estimated_minutes])
 
+            # Create a temporary DataFrame for scaling
+            features_df = pd.DataFrame({
+                "TRIP_MILES": [args.trip_miles],
+                "ESTIMATED_MINUTES": [estimated_minutes],
+                "TRIP_MILES_SQ": [trip_miles_sq]
+            })
+
+            # Scale the features and prepare the final input dictionary
+            scaled_features_array = scaler.transform(features_df[settings.input_features])
+            for i, feature_name in enumerate(settings.input_features):
+                input_data[feature_name] = np.array([scaled_features_array[0, i]])
+                
         except FileNotFoundError:
             print("Aborting prediction due to missing feature engineering resources.")
             return
